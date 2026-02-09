@@ -7,7 +7,6 @@ import com.estudosmarcos.fixacao.repository.CategoryRepository;
 import com.estudosmarcos.fixacao.repository.TransactionRepository;
 import com.estudosmarcos.fixacao.services.exceptions.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,16 +46,17 @@ public class TransactionService {
 
     @Transactional
     public TransactionDTO create(TransactionDTO dto) {
-        try {
+
             Transaction entity = new Transaction();
+            // Fail Fast: Valida existência com baixo custo (SELECT 1) para garantir integridade antes de processar.
+            if (!categoryRepository.existsById(dto.category().id())) {
+                throw new ResourceNotFoundException("Categoria não existe.");
+            }
             dtoToEntity(dto, entity);
 
             return new TransactionDTO(transactionRepository.save(entity));
 
-        } catch (DataIntegrityViolationException e) {
-            // Captura erro de chave estrangeira (FK) do banco e lança exceção de negócio tratada
-            throw new ResourceNotFoundException("Categoria não existe.");
-        }
+
     }
 
     @Transactional
@@ -77,7 +77,7 @@ public class TransactionService {
         entity.setAmount(dto.amount());
         entity.setDate(dto.date());
         entity.setType(dto.type());
-        // Performance: getReferenceById cria um Proxy (sem SELECT no banco) apenas com o ID para salvar a FK na transação
+        // Performance: Cria apenas o Proxy (sem novo SELECT) para vincular a categoria já validada.
         Category c = categoryRepository.getReferenceById(dto.category().id());
         entity.setCategory(c);
     }
